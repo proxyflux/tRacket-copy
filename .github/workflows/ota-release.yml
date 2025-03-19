@@ -1,0 +1,41 @@
+name: OTA Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  generate:
+    name: Create release-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      # - uses: actions/cache@v4.0.0
+      #   with:
+      #     path: |
+      #       ~/.cache/pip
+      #       ~/.platformio/.cache
+      #     key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v5.0.0
+        with:
+          python-version: '3.9'
+      - name: Install Python packages
+        run: |
+          pip install --upgrade platformio
+          pip install --upgrade cryptography
+
+      - name: Create files
+        env:
+          OTA_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+        run: |
+          echo "$OTA_KEY" > "${GITHUB_WORKSPACE}/priv_key.pem"
+          python "${GITHUB_WORKSPACE}/noisemeter-device/certs.py" -s api.tracket.info > "${GITHUB_WORKSPACE}/noisemeter-device/certs.h"
+
+      - name: Build signed firmware
+        run: pio run -t ota -e esp32-pcb
+
+      - name: Upload signed firmware
+        uses: djn24/add-asset-to-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: 'firmware_signed.bin'
